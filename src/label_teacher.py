@@ -1,8 +1,8 @@
-"""The teacher: Claude labels a batch of abstracts (the "oracle").
+"""The teacher: an LLM labels a batch of abstracts (the "oracle").
 
-Batches many abstracts into one call for cost efficiency, and asks for
-strict JSON back. Falls back to a keyword heuristic in --mock mode so you
-can run the whole pipeline locally before wiring up an API key.
+Uses Google's Gemini API (generous free tier). Batches many abstracts into
+one call for efficiency and asks for strict JSON back. Falls back to a keyword
+heuristic in --mock mode so you can run the whole pipeline locally with no key.
 """
 from __future__ import annotations
 
@@ -12,7 +12,8 @@ import re
 import urllib.error
 import urllib.request
 
-API_URL = "https://api.anthropic.com/v1/messages"
+# Gemini "generateContent" endpoint; the model name is filled in per call.
+API_TMPL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 # Only used by mock mode so you can test with zero cost / no key.
 _MOCK_KEYWORDS = (
@@ -29,7 +30,7 @@ def _mock_label(text: str) -> int:
 def label_batch(papers: list[dict], task_question: str, model: str,
                 mock: bool = False) -> dict[str, int]:
     """Return {paper_id: 0|1} for the batch."""
-    if mock or not os.environ.get("ANTHROPIC_API_KEY"):
+    if mock or not os.environ.get("GEMINI_API_KEY"):
         return {p["id"]: _mock_label(p["text"]) for p in papers}
 
     numbered = "\n".join(f'{i}. (id={p["id"]}) {p["text"][:600]}'
@@ -43,33 +44,33 @@ def label_batch(papers: list[dict], task_question: str, model: str,
         f"{numbered}"
     )
     body = json.dumps({
-        "model": model,
-        "max_tokens": 1500,
-        "messages": [{"role": "user", "content": prompt}],
+        "contents": [{"parts": [{"text": prompt}]}]
     }).encode()
 
     req = urllib.request.Request(
-        API_URL, data=body, method="POST",
+        API_TMPL.format(model=model), data=body, method="POST",
         headers={
             "content-type": "application/json",
-            "anthropic-version": "2023-06-01",
-            "x-api-key": os.environ["ANTHROPIC_API_KEY"],
+            "x-goog-api-key": os.environ["GEMINI_API_KEY"],
         },
     )
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
             data = json.loads(resp.read())
     except urllib.error.HTTPError as e:
-        # Surface the API's actual error message (e.g. an invalid model name)
         detail = e.read().decode("utf-8", "replace")
         raise RuntimeError(
-            f"Anthropic API returned HTTP {e.code}. Details:\n{detail}\n\n"
+            f"Gemini API returned HTTP {e.code}. Details:\n{detail}\n\n"
             f"If this says the model was not found, update 'teacher_model' in "
             f"config.yaml to a current model from "
-            f"https://docs.claude.com/en/docs/about-claude/models"
+            f"https://ai.google.dev/gemini-api/docs/models"
         ) from None
 
-    text = "".join(b.get("text", "") for b in data.get("content", []))
+    # Gemini response: candidates[0].content.parts[*].text
+    parts = (data.get("candidates", [{}])[0]
+                 .get("content", {})
+                 .get("parts", []))
+    text = "".join(p.get("text", "") for p in parts)
     match = re.search(r"\[.*\]", text, re.DOTALL)
     if not match:
         raise ValueError(f"Could not parse label JSON from response:\n{text[:400]}")

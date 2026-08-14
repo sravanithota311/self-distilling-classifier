@@ -11,10 +11,10 @@ task_question: >
 arxiv_category: "cs.CL"      # try cs.LG, cs.AI, stat.ML, cs.CV ...
 batch_size: 40               # abstracts pulled per run
 
-# Teacher (labeling) model — cheap model is ideal for labeling.
-# If you get an HTTP 400 "model not found", check the current model list at
-# https://docs.claude.com/en/docs/about-claude/models and update this string.
-teacher_model: "claude-haiku-4-5-20251001"
+# Teacher (labeling) model — Gemini free tier. If you get an HTTP 400/404
+# "model not found", check the current free models at
+# https://ai.google.dev/gemini-api/docs/models and update this string.
+teacher_model: "gemini-2.0-flash"
 
 # Promotion rule: challenger must beat champion agreement by at least this much
 promotion_margin: 0.0
@@ -22,5 +22,4 @@ promotion_margin: 0.0
 # Drift: flag when this run's agreement drops more than this below the
 # rolling average of recent runs
 drift_threshold: 0.05
-rolling_window: 5 
-#
+rolling_window: 5

@@ -11,8 +11,10 @@ task_question: >
 arxiv_category: "cs.CL"      # try cs.LG, cs.AI, stat.ML, cs.CV ...
 batch_size: 40               # abstracts pulled per run
 
-# Teacher (labeling) model — cheap model is ideal for labeling
-teacher_model: "claude-3-5-haiku-20241022"
+# Teacher (labeling) model — cheap model is ideal for labeling.
+# If you get an HTTP 400 "model not found", check the current model list at
+# https://docs.claude.com/en/docs/about-claude/models and update this string.
+teacher_model: "claude-haiku-4-5-20251001"
 
 # Promotion rule: challenger must beat champion agreement by at least this much
 promotion_margin: 0.0

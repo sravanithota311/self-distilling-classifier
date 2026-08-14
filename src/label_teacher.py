@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import urllib.error
 import urllib.request
 
 API_URL = "https://api.anthropic.com/v1/messages"
@@ -55,8 +56,18 @@ def label_batch(papers: list[dict], task_question: str, model: str,
             "x-api-key": os.environ["ANTHROPIC_API_KEY"],
         },
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        data = json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        # Surface the API's actual error message (e.g. an invalid model name)
+        detail = e.read().decode("utf-8", "replace")
+        raise RuntimeError(
+            f"Anthropic API returned HTTP {e.code}. Details:\n{detail}\n\n"
+            f"If this says the model was not found, update 'teacher_model' in "
+            f"config.yaml to a current model from "
+            f"https://docs.claude.com/en/docs/about-claude/models"
+        ) from None
 
     text = "".join(b.get("text", "") for b in data.get("content", []))
     match = re.search(r"\[.*\]", text, re.DOTALL)

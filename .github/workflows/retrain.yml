@@ -1,0 +1,36 @@
+name: self-distilling-retrain
+
+# The automation heartbeat. Runs on a schedule AND on a manual button.
+on:
+  schedule:
+    - cron: "0 8 * * *"     # every day at 08:00 UTC — change to your cadence
+  workflow_dispatch: {}       # lets you trigger a run by hand from the Actions tab
+
+permissions:
+  contents: write             # needed so the job can commit the new state back
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run the self-distilling pipeline
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python src/run_pipeline.py
+
+      - name: Commit updated model, data, and report
+        run: |
+          git config user.name "retrain-bot"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "retrain: $(date -u +%Y-%m-%dT%H:%MZ)" || echo "nothing to commit"
+          git push

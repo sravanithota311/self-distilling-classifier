@@ -1,0 +1,23 @@
+# ---- Self-Distilling Classifier config ----
+# Tweak these; everything else reads from here.
+
+# What the teacher (Claude) decides. Rewrite this question to change the task
+# entirely — that one line redefines what your model learns.
+task_question: >
+  Is this paper primarily about large language models, LLM agents,
+  or retrieval-augmented generation? Answer strictly about the main topic.
+
+# Data source
+arxiv_category: "cs.CL"      # try cs.LG, cs.AI, stat.ML, cs.CV ...
+batch_size: 40               # abstracts pulled per run
+
+# Teacher (labeling) model — cheap model is ideal for labeling
+teacher_model: "claude-3-5-haiku-20241022"
+
+# Promotion rule: challenger must beat champion agreement by at least this much
+promotion_margin: 0.0
+
+# Drift: flag when this run's agreement drops more than this below the
+# rolling average of recent runs
+drift_threshold: 0.05
+rolling_window: 5

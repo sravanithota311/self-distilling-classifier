@@ -1,16 +1,16 @@
-"""Claude writes a plain-English report on what happened this run.
+"""The reporter: an LLM writes a plain-English report on what happened this run.
 
-Turns the raw metrics dict into a short markdown changelog a human (or a
-recruiter reading your repo) can actually understand. Falls back to a
-template if no API key is set.
+Uses Gemini (free tier). Turns the raw metrics dict into a short markdown
+changelog. Falls back to a template if no API key is set.
 """
 from __future__ import annotations
 
 import json
 import os
+import urllib.error
 import urllib.request
 
-API_URL = "https://api.anthropic.com/v1/messages"
+API_TMPL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 
 def _fallback(metrics: dict) -> str:
@@ -28,7 +28,7 @@ def _fallback(metrics: dict) -> str:
 
 
 def write_report(metrics: dict, model: str) -> str:
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    if not os.environ.get("GEMINI_API_KEY"):
         return _fallback(metrics)
 
     prompt = (
@@ -38,22 +38,21 @@ def write_report(metrics: dict, model: str) -> str:
         "Start with an H1 title. Here are the metrics:\n\n"
         f"{json.dumps(metrics, indent=2)}"
     )
-    body = json.dumps({
-        "model": model,
-        "max_tokens": 500,
-        "messages": [{"role": "user", "content": prompt}],
-    }).encode()
+    body = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode()
     req = urllib.request.Request(
-        API_URL, data=body, method="POST",
+        API_TMPL.format(model=model), data=body, method="POST",
         headers={
             "content-type": "application/json",
-            "anthropic-version": "2023-06-01",
-            "x-api-key": os.environ["ANTHROPIC_API_KEY"],
+            "x-goog-api-key": os.environ["GEMINI_API_KEY"],
         },
     )
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
             data = json.loads(resp.read())
-        return "".join(b.get("text", "") for b in data.get("content", []))
+        parts = (data.get("candidates", [{}])[0]
+                     .get("content", {})
+                     .get("parts", []))
+        text = "".join(p.get("text", "") for p in parts)
+        return text or _fallback(metrics)
     except Exception as e:  # never let reporting crash the pipeline
         return _fallback(metrics) + f"\n\n> (report model unavailable: {e})\n"

@@ -37,7 +37,11 @@ def post_json(url: str, payload: dict, headers: dict,
                 return json.loads(resp.read())
         except urllib.error.HTTPError as e:
             last_detail = e.read().decode("utf-8", "replace")
-            if e.code in _RETRYABLE and attempt < max_attempts:
+            # A 429 that mentions daily quota is NOT transient — it won't clear
+            # for hours, so retrying just wastes attempts. Fail fast on it.
+            quota_exhausted = e.code == 429 and (
+                "quota" in last_detail.lower() or "per day" in last_detail.lower())
+            if e.code in _RETRYABLE and attempt < max_attempts and not quota_exhausted:
                 print(f"      API busy (HTTP {e.code}) — retry "
                       f"{attempt}/{max_attempts - 1} in {delay:.0f}s...")
                 time.sleep(delay)

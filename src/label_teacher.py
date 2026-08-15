@@ -3,14 +3,19 @@
 Uses Google's Gemini API (generous free tier). Batches many abstracts into
 one call for efficiency and asks for strict JSON back. Falls back to a keyword
 heuristic in --mock mode so you can run the whole pipeline locally with no key.
+Transient API errors (503 overloaded, 429 rate-limited) are retried with
+exponential backoff via http_client.
 """
 from __future__ import annotations
 
 import json
 import os
 import re
-import urllib.error
-import urllib.request
+
+try:
+    from . import http_client
+except ImportError:
+    import http_client
 
 # Gemini "generateContent" endpoint; the model name is filled in per call.
 API_TMPL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -43,30 +48,21 @@ def label_batch(papers: list[dict], task_question: str, model: str,
         f'[{{"id": "2401.01234", "label": 1}}, ...] with no other text.\n\n'
         f"{numbered}"
     )
-    body = json.dumps({
-        "contents": [{"parts": [{"text": prompt}]}]
-    }).encode()
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    headers = {
+        "content-type": "application/json",
+        "x-goog-api-key": os.environ["GEMINI_API_KEY"],
+    }
 
-    req = urllib.request.Request(
-        API_TMPL.format(model=model), data=body, method="POST",
-        headers={
-            "content-type": "application/json",
-            "x-goog-api-key": os.environ["GEMINI_API_KEY"],
-        },
-    )
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            data = json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode("utf-8", "replace")
+        data = http_client.post_json(API_TMPL.format(model=model), payload, headers)
+    except RuntimeError as e:
         raise RuntimeError(
-            f"Gemini API returned HTTP {e.code}. Details:\n{detail}\n\n"
-            f"If this says the model was not found, update 'teacher_model' in "
-            f"config.yaml to a current model from "
+            f"{e}\n\nIf this says the model was not found, update 'teacher_model' "
+            f"in config.yaml to a current model from "
             f"https://ai.google.dev/gemini-api/docs/models"
         ) from None
 
-    # Gemini response: candidates[0].content.parts[*].text
     parts = (data.get("candidates", [{}])[0]
                  .get("content", {})
                  .get("parts", []))
@@ -76,5 +72,4 @@ def label_batch(papers: list[dict], task_question: str, model: str,
         raise ValueError(f"Could not parse label JSON from response:\n{text[:400]}")
     rows = json.loads(match.group(0))
     labels = {str(r["id"]): int(r["label"]) for r in rows}
-    # Any the model skipped default to 0 so downstream code stays simple.
     return {p["id"]: labels.get(p["id"], 0) for p in papers}

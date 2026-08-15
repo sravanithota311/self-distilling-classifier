@@ -1,36 +1,58 @@
-name: self-distilling-retrain
+"""The reporter: an LLM writes a plain-English report on what happened this run.
 
-# The automation heartbeat. Runs on a schedule AND on a manual button.
-on:
-  schedule:
-    - cron: "0 8 * * *"     # every day at 08:00 UTC — change to your cadence
-  workflow_dispatch: {}       # lets you trigger a run by hand from the Actions tab
+Uses Gemini (free tier). Turns the raw metrics dict into a short markdown
+changelog. Falls back to a template if no API key is set.
+"""
+from __future__ import annotations
 
-permissions:
-  contents: write             # needed so the job can commit the new state back
+import json
+import os
+import urllib.error
+import urllib.request
 
-jobs:
-  retrain:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+API_TMPL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+def _fallback(metrics: dict) -> str:
+    verdict = "promoted" if metrics["promoted"] else "kept the incumbent"
+    return (
+        f"# Retrain report — {metrics['timestamp']}\n\n"
+        f"- New batch: {metrics['batch_size']} papers\n"
+        f"- Positive rate (teacher): {metrics['positive_rate']:.0%}\n"
+        f"- Challenger agreement: {metrics['challenger_agreement']:.1%}\n"
+        f"- Champion agreement: {metrics['champion_agreement']:.1%}\n"
+        f"- Decision: **{verdict}**\n"
+        f"- Agreement drift vs recent avg: {metrics['agreement_drift']:+.3f}\n"
+        f"- New-vocabulary rate: {metrics['vocabulary_drift']:.0%}\n"
+    )
 
-      - name: Run the self-distilling pipeline
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python src/run_pipeline.py
 
-      - name: Commit updated model, data, and report
-        run: |
-          git config user.name "retrain-bot"
-          git config user.email "actions@github.com"
-          git add -A
-          git commit -m "retrain: $(date -u +%Y-%m-%dT%H:%MZ)" || echo "nothing to commit"
-          git push
+def write_report(metrics: dict, model: str) -> str:
+    if not os.environ.get("GEMINI_API_KEY"):
+        return _fallback(metrics)
+
+    prompt = (
+        "You are the ML engineer on call. Write a short (120-word max) markdown "
+        "changelog for this self-retraining run. Explain in plain English whether "
+        "the model improved, whether the data drifted, and what you'd watch next. "
+        "Start with an H1 title. Here are the metrics:\n\n"
+        f"{json.dumps(metrics, indent=2)}"
+    )
+    body = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode()
+    req = urllib.request.Request(
+        API_TMPL.format(model=model), data=body, method="POST",
+        headers={
+            "content-type": "application/json",
+            "x-goog-api-key": os.environ["GEMINI_API_KEY"],
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read())
+        parts = (data.get("candidates", [{}])[0]
+                     .get("content", {})
+                     .get("parts", []))
+        text = "".join(p.get("text", "") for p in parts)
+        return text or _fallback(metrics)
+    except Exception as e:  # never let reporting crash the pipeline
+        return _fallback(metrics) + f"\n\n> (report model unavailable: {e})\n"

@@ -1,14 +1,17 @@
 """The reporter: an LLM writes a plain-English report on what happened this run.
 
-Uses Gemini (free tier). Turns the raw metrics dict into a short markdown
-changelog. Falls back to a template if no API key is set.
+Uses Gemini (free tier) with the same retry-on-transient-error behavior.
+Falls back to a template if no API key is set or the call fails.
 """
 from __future__ import annotations
 
 import json
 import os
-import urllib.error
-import urllib.request
+
+try:
+    from . import http_client
+except ImportError:
+    import http_client
 
 API_TMPL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -38,17 +41,13 @@ def write_report(metrics: dict, model: str) -> str:
         "Start with an H1 title. Here are the metrics:\n\n"
         f"{json.dumps(metrics, indent=2)}"
     )
-    body = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode()
-    req = urllib.request.Request(
-        API_TMPL.format(model=model), data=body, method="POST",
-        headers={
-            "content-type": "application/json",
-            "x-goog-api-key": os.environ["GEMINI_API_KEY"],
-        },
-    )
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    headers = {
+        "content-type": "application/json",
+        "x-goog-api-key": os.environ["GEMINI_API_KEY"],
+    }
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            data = json.loads(resp.read())
+        data = http_client.post_json(API_TMPL.format(model=model), payload, headers)
         parts = (data.get("candidates", [{}])[0]
                      .get("content", {})
                      .get("parts", []))

@@ -9,6 +9,12 @@ on:
 permissions:
   contents: write             # needed so the job can commit the new state back
 
+# Never let two retrain runs execute at once — a second trigger waits for the
+# first to finish, so runs can't overwrite each other's data.
+concurrency:
+  group: retrain
+  cancel-in-progress: false
+
 jobs:
   retrain:
     runs-on: ubuntu-latest

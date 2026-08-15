@@ -33,6 +33,12 @@ jobs:
           git config user.email "actions@github.com"
           git add -A
           git commit -m "retrain: $(date -u +%Y-%m-%dT%H:%MZ)" || echo "nothing to commit"
-          # pull any commits made since checkout so the push isn't rejected
-          git pull --rebase origin main
-          git push
+          # These files are machine-generated, so on any conflict this run's
+          # version wins. Retry a few times in case another run pushes first.
+          for i in 1 2 3 4 5; do
+            git fetch origin main
+            git rebase -X ours origin/main && git push && break
+            echo "push attempt $i failed, retrying..."
+            git rebase --abort 2>/dev/null || true
+            sleep 5
+          done

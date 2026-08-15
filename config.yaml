@@ -14,7 +14,8 @@ batch_size: 40               # abstracts pulled per run
 # Teacher (labeling) model — Gemini free tier. If you get an HTTP 400/404
 # "model not found", check the current free models at
 # https://ai.google.dev/gemini-api/docs/models and update this string.
-teacher_model: "gemini-flash-latest"
+teacher_model: "gemini-2.0-flash"
+
 # Promotion rule: challenger must beat champion agreement by at least this much
 promotion_margin: 0.0
 
@@ -22,3 +23,8 @@ promotion_margin: 0.0
 # rolling average of recent runs
 drift_threshold: 0.05
 rolling_window: 5
+
+# The report can be written by the LLM (nicer prose) or a built-in template
+# (free — saves one API request per run). On the free tier, keep this false to
+# make your daily quota go twice as far; flip to true if you have quota to spare.
+llm_report: false

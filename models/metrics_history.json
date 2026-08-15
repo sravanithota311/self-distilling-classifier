@@ -1,0 +1,15 @@
+[
+  {
+    "timestamp": "2026-08-15T18:47:41Z",
+    "batch_size": 40,
+    "positive_rate": 0.925,
+    "can_train": false,
+    "challenger_agreement": 0.0,
+    "champion_agreement": 0.0,
+    "promoted": false,
+    "agreement_drift": 0.0,
+    "vocabulary_drift": 1.0,
+    "drift_flag": false,
+    "total_labeled": 40
+  }
+]

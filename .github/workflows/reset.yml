@@ -1,0 +1,32 @@
+name: reset-state
+
+# A manual "start fresh" button. Wipes all generated data/model/report state
+# so the next retrain run begins from an empty history.
+# Run it from the Actions tab: Reset state -> Run workflow.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Delete generated state
+        run: |
+          rm -f data/labeled.jsonl
+          rm -f models/production.pkl models/metrics_history.json
+          rm -f reports/report_*.md reports/latest.md
+          # keep the folders alive for the next run
+          touch data/.gitkeep models/.gitkeep reports/.gitkeep
+
+      - name: Commit the reset
+        run: |
+          git config user.name "retrain-bot"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "reset: clear generated state $(date -u +%Y-%m-%dT%H:%MZ)" || echo "already clean"
+          git push

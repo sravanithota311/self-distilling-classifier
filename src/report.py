@@ -30,8 +30,8 @@ def _fallback(metrics: dict) -> str:
     )
 
 
-def write_report(metrics: dict, model: str) -> str:
-    if not os.environ.get("GEMINI_API_KEY"):
+def write_report(metrics: dict, model: str, use_llm: bool = False) -> str:
+    if not use_llm or not os.environ.get("GEMINI_API_KEY"):
         return _fallback(metrics)
 
     prompt = (

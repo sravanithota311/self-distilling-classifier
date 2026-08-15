@@ -33,4 +33,6 @@ jobs:
           git config user.email "actions@github.com"
           git add -A
           git commit -m "retrain: $(date -u +%Y-%m-%dT%H:%MZ)" || echo "nothing to commit"
+          # pull any commits made since checkout so the push isn't rejected
+          git pull --rebase origin main
           git push

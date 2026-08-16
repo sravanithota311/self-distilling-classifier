@@ -41,6 +41,11 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python src/run_pipeline.py
 
+      - name: Rebuild the dashboard
+        env:
+          CI: "true"
+        run: python scripts/make_dashboard.py
+
       - name: Commit updated model, data, and report
         run: |
           git add -A

@@ -28,6 +28,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Sync to the very latest state before running
+        run: |
+          git config user.name "retrain-bot"
+          git config user.email "actions@github.com"
+          # The checkout can be a moment behind; pull the newest main so the
+          # pipeline reads the true current labeled.jsonl and appends to it.
+          git pull --no-rebase origin main || true
+
       - name: Run the self-distilling pipeline
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -35,17 +43,14 @@ jobs:
 
       - name: Commit updated model, data, and report
         run: |
-          git config user.name "retrain-bot"
-          git config user.email "actions@github.com"
-          # Commit our new data FIRST (our checkout already has prior data, and
-          # the pipeline appended to it — so this commit = old + new rows).
           git add -A
           git commit -m "retrain: $(date -u +%Y-%m-%dT%H:%MZ)" || echo "nothing to commit"
-          # Then sync + push, retrying on races. In a MERGE, '-X ours' keeps our
-          # side (this run's accumulated data) if anything conflicts.
+          # Push, retrying on races. If rejected, pull the newest main and re-run
+          # is NOT needed here because we synced before running; a simple rebase
+          # of our single commit onto the latest main resolves any race.
           for i in 1 2 3 4 5; do
             git push && break
-            echo "push attempt $i rejected; merging remote and retrying..."
-            git pull --no-rebase -X ours origin main || true
+            echo "push attempt $i rejected; rebasing onto latest main..."
+            git pull --rebase -X theirs origin main || git rebase --abort || true
             sleep 4
           done

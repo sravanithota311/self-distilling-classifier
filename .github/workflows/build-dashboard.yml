@@ -1,0 +1,33 @@
+name: build-dashboard
+
+# A manual "build the dashboard now" button. Regenerates docs/index.html from
+# the existing run history — no new papers, no Gemini calls, no quota used.
+# Run it from the Actions tab: build-dashboard -> Run workflow.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build the dashboard from existing data
+        env:
+          CI: "true"
+        run: python scripts/make_dashboard.py
+
+      - name: Commit the dashboard
+        run: |
+          git config user.name "retrain-bot"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "dashboard: rebuild $(date -u +%Y-%m-%dT%H:%MZ)" || echo "no changes"
+          git push

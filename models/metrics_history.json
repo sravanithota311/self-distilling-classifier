@@ -24,5 +24,18 @@
     "vocabulary_drift": 0.5355,
     "drift_flag": false,
     "total_labeled": 80
+  },
+  {
+    "timestamp": "2026-08-16T18:28:59Z",
+    "batch_size": 40,
+    "positive_rate": 0.75,
+    "can_train": true,
+    "challenger_agreement": 0.75,
+    "champion_agreement": 0.75,
+    "promoted": true,
+    "agreement_drift": 0.05,
+    "vocabulary_drift": 0.3519,
+    "drift_flag": false,
+    "total_labeled": 120
   }
 ]

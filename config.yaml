@@ -14,7 +14,7 @@ batch_size: 40               # abstracts pulled per run
 # Teacher (labeling) model — Gemini free tier. If you get an HTTP 400/404
 # "model not found", check the current free models at
 # https://ai.google.dev/gemini-api/docs/models and update this string.
-teacher_model: "gemini-2.0-flash"
+teacher_model: "gemini-flash-latest"
 
 # Promotion rule: challenger must beat champion agreement by at least this much
 promotion_margin: 0.0

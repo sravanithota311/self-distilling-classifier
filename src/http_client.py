@@ -20,14 +20,15 @@ _RETRYABLE = {429, 500, 502, 503, 504}
 
 
 def post_json(url: str, payload: dict, headers: dict,
-              timeout: int = 120, max_attempts: int = 5) -> dict:
+              timeout: int = 120, max_attempts: int = 7) -> dict:
     """POST JSON and return the parsed JSON response, retrying transient errors.
 
     Raises RuntimeError with the API's own message on a permanent failure or
     after exhausting retries.
     """
     body = json.dumps(payload).encode()
-    delay = 2.0
+    delay = 3.0
+    max_delay = 45.0
     last_detail = ""
 
     for attempt in range(1, max_attempts + 1):
@@ -42,10 +43,11 @@ def post_json(url: str, payload: dict, headers: dict,
             quota_exhausted = e.code == 429 and (
                 "quota" in last_detail.lower() or "per day" in last_detail.lower())
             if e.code in _RETRYABLE and attempt < max_attempts and not quota_exhausted:
+                wait = min(delay, max_delay)
                 print(f"      API busy (HTTP {e.code}) — retry "
-                      f"{attempt}/{max_attempts - 1} in {delay:.0f}s...")
-                time.sleep(delay)
-                delay *= 2  # exponential backoff
+                      f"{attempt}/{max_attempts - 1} in {wait:.0f}s...")
+                time.sleep(wait)
+                delay = min(delay * 2, max_delay)  # exponential backoff, capped
                 continue
             # permanent error, or out of retries
             raise RuntimeError(

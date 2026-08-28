@@ -1,9 +1,9 @@
-# Retrain report — 2026-08-23T08:20:42Z
+# Retrain report — 2026-08-28T19:48:44Z
 
 - New batch: 40 papers
-- Positive rate (teacher): 82%
-- Challenger agreement: 82.5%
-- Champion agreement: 82.5%
+- Positive rate (teacher): 70%
+- Challenger agreement: 77.5%
+- Champion agreement: 75.0%
 - Decision: **promoted**
-- Agreement drift vs recent avg: -0.050
-- New-vocabulary rate: 24%
+- Agreement drift vs recent avg: +0.013
+- New-vocabulary rate: 21%
